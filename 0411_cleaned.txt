@@ -1,0 +1,81 @@
+
+// Adapted from gepd-function-explorer:
+//  https://gitlab.com/ryandwyer/gepd-function-explorer
+
+// ====== "Trun" 0411 ======
+// Note:
+// - 94,96 commands may not actually be setting / comparing a value, GE editor talks of masking.
+// - In particular 95 'unmasks' the same value, and there is no such thing as un-setting a byte.
+// => Seems to make more sense to see these as flags?
+
+// This script is relatively simple.
+
+
+If Trev's health <= 90 then
+    Assign function [0410 - Trev running to bottom](0410 - Trev running to bottom.md) to $self and sleep
+    // Probably doesn't return, and besides it isn't given an opportunity until after the fight down the ladder.
+end
+
+Reset and start cycle counter
+
+// 'Unmask the guard type': set the 2,4,8,16 flags to 0?
+9502
+9504
+9508
+9510
+
+// self->pad set by other scripts. Note this command terminates instantly.
+Begin running to $self->pad
+
+do (07)
+    03	Sleep
+
+    // Apparently we don't know what 7efd tests, but fd is current actor
+    if <7efd> then
+        Set actor property: 1:00000010 (invincible)
+        // Rare comment "<-damage off(run)\n"
+        Set flag #24 (trigger to say message)
+    end
+
+    // React with grenade IF we haven't previously (in THIS run of the script, i.e. since the 95 statements),
+    //                      AND a second has passed on our counter
+    // Then loop
+    if !<9602> ($self->guardType && 0x2 == 0) and cycle counter >= 60 (1.0 secs) then
+        9402	$self->guardType ||= 0x2, set the 2-flag
+
+        // Rare comment: "grenade!\n"
+        33	Call RNG
+        if random byte <= 80 (81/256 chance) then
+            if Bond within 196 units then
+                drop weapon Grenades
+            end
+        end
+
+    else
+        // Otherwise POTENTIALLY react with a with a cutting remark
+        //   IF we haven't CONSIDERED doing so before (as above),
+        //      AND 10 seconds have passed in our counter
+        // And loop
+        if !<9610>	($self->guardType && 0x10 == 0) and cycle counter >= 600 then
+            9410	$self->guardType ||= 0x10
+            // Rare comment: "walk attack\n"
+            if <3c> (line of sight on Bond)	then
+                if Bond's health < 51 then
+                    Display text at top: "Trevelyan: You're not looking so well, 
+                                            James - can't take the pace?"
+                    Run to $self->pad
+                end
+            end
+        else
+            // Otherwise if we've given up or got very close to our pad, go to 0413
+            //  => Other guards you can make them give up by causing an injury animation, but probably not Trev.
+            if $self is within 10 units of $self->pad or actor has stopped moving then
+                Assign function [0413 - Trev waiting](0413 - Trev waiting.md) to $self and sleep
+            end
+        end
+
+    end
+
+loop (07)
+
+
